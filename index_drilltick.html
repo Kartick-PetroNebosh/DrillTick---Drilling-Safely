@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DrillTick — Drilling & Safety Operations Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --oil: #0a0c10;
+    --steel: #141820;
+    --panel: #1a1f2e;
+    --border: #2a3040;
+    --red: #cc2200;
+    --red-glow: #ff3311;
+    --amber: #e8a000;
+    --amber-glow: #ffbb22;
+    --cyan: #00bcd4;
+    --cyan-glow: #00e5ff;
+    --white: #e8eaf0;
+    --muted: #8892a4;
+    --font-display: 'Orbitron', monospace;
+    --font-body: 'Rajdhani', sans-serif;
+    --font-mono: 'Share Tech Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--oil);
+    color: var(--white);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-x: hidden;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── GRID BACKGROUND ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,188,212,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,188,212,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── IN PROGRESS BANNER ── */
+  .in-progress-banner {
+    background: repeating-linear-gradient(
+      -45deg,
+      #cc2200 0px, #cc2200 16px,
+      #1a1020 16px, #1a1020 32px
+    );
+    text-align: center;
+    padding: 10px 0;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+    animation: bannerPulse 2s ease-in-out infinite;
+  }
+  .in-progress-banner span {
+    background: rgba(0,0,0,0.6);
+    padding: 2px 24px;
+  }
+  @keyframes bannerPulse {
+    0%,100% { opacity:1; }
+    50% { opacity:0.8; }
+  }
+
+  /* ── HEADER ── */
+  .header {
+    position: relative;
+    text-align: center;
+    padding: 60px 20px 50px;
+    overflow: hidden;
+    z-index: 1;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), var(--amber), transparent);
+  }
+
+  /* Animated drill bit SVG */
+  .drill-icon {
+    width: 70px;
+    height: 70px;
+    margin: 0 auto 20px;
+    display: block;
+    animation: drillSpin 4s linear infinite;
+    filter: drop-shadow(0 0 12px var(--amber));
+  }
+  @keyframes drillSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .header-sub {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    color: var(--cyan);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.2s;
+  }
+
+  .header-title {
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: 0.05em;
+    color: var(--amber-glow);
+    text-shadow: 0 0 30px rgba(255,187,34,0.4), 0 0 60px rgba(255,187,34,0.15);
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.4s;
+    margin-bottom: 8px;
+  }
+  .header-title .dash { color: var(--white); }
+
+  .header-tagline {
+    font-size: 1rem;
+    color: var(--muted);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.6s;
+    margin-bottom: 28px;
+  }
+
+  .purpose-box {
+    display: inline-block;
+    background: rgba(0,188,212,0.06);
+    border: 1px solid rgba(0,188,212,0.2);
+    border-radius: 6px;
+    padding: 16px 28px;
+    max-width: 640px;
+    font-size: 0.95rem;
+    color: #c8d0dd;
+    line-height: 1.7;
+    opacity: 0;
+    animation: fadeUp 0.6s ease forwards 0.8s;
+  }
+  .purpose-box strong {
+    display: block;
+    color: var(--cyan);
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    margin-bottom: 6px;
+  }
+
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(18px); }
+    to   { opacity:1; transform:translateY(0);    }
+  }
+
+  /* ── MAIN CONTENT ── */
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 20px 60px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 2px;
+    display: inline-block;
+    margin-bottom: 24px;
+  }
+  .section-label.red  { background: rgba(204,34,0,0.15);  color: var(--red-glow);  border: 1px solid rgba(204,34,0,0.3); }
+  .section-label.cyan { background: rgba(0,188,212,0.1);  color: var(--cyan-glow); border: 1px solid rgba(0,188,212,0.3); }
+
+  /* ── TWO-COL GRID ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 40px;
+  }
+  @media(max-width:640px){
+    .two-col { grid-template-columns:1fr; }
+  }
+
+  .col-panel {
+    padding: 32px 28px;
+    background: var(--panel);
+  }
+  .col-panel:first-child {
+    border-right: 1px solid var(--border);
+  }
+  .col-panel-title {
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    margin-bottom: 28px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .col-panel:first-child .col-panel-title { color: var(--red-glow); }
+  .col-panel:last-child  .col-panel-title { color: var(--cyan-glow); }
+
+  /* ── MODULE CARD ── */
+  .module {
+    margin-bottom: 26px;
+    opacity: 0;
+    animation: fadeUp 0.5s ease forwards;
+  }
+  .module:nth-child(1){animation-delay:0.1s}
+  .module:nth-child(2){animation-delay:0.2s}
+  .module:nth-child(3){animation-delay:0.3s}
+  .module:nth-child(4){animation-delay:0.4s}
+  .module:nth-child(5){animation-delay:0.5s}
+
+  .module-name {
+    font-family: var(--font-body);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .module-name::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .col-panel:first-child .module-name::before { background: var(--red-glow); box-shadow: 0 0 6px var(--red-glow); }
+  .col-panel:last-child  .module-name::before { background: var(--cyan-glow); box-shadow: 0 0 6px var(--cyan-glow); }
+
+  .module-points {
+    list-style: none;
+    padding-left: 14px;
+  }
+  .module-points li {
+    font-size: 0.88rem;
+    color: var(--muted);
+    padding: 2px 0;
+    font-weight: 500;
+    position: relative;
+    padding-left: 12px;
+  }
+  .module-points li::before {
+    content: '–';
+    position: absolute;
+    left: 0;
+    color: var(--border);
+  }
+
+  /* ── STATS ROW ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+  @media(max-width:640px){ .stats-row { grid-template-columns: repeat(2,1fr); } }
+
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 16px;
+    text-align: center;
+    transition: border-color 0.3s, transform 0.3s;
+    opacity: 0;
+    animation: fadeUp 0.5s ease forwards;
+  }
+  .stat-card:nth-child(1){animation-delay:0.05s}
+  .stat-card:nth-child(2){animation-delay:0.1s}
+  .stat-card:nth-child(3){animation-delay:0.15s}
+  .stat-card:nth-child(4){animation-delay:0.2s}
+  .stat-card:hover { border-color: var(--amber); transform: translateY(-3px); }
+
+  .stat-num {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--amber-glow);
+    text-shadow: 0 0 16px rgba(255,187,34,0.4);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* ── TECH ROW ── */
+  .tech-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 40px;
+    justify-content: center;
+  }
+  .tech-tag {
+    background: rgba(232,160,0,0.08);
+    border: 1px solid rgba(232,160,0,0.25);
+    border-radius: 4px;
+    padding: 7px 16px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--amber);
+    letter-spacing: 0.08em;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .tech-tag:hover {
+    background: rgba(232,160,0,0.15);
+    border-color: var(--amber-glow);
+    color: var(--amber-glow);
+  }
+
+  /* ── STRENGTH SECTION ── */
+  .strength-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--red-glow);
+    border-radius: 6px;
+    padding: 32px 28px;
+    margin-bottom: 40px;
+  }
+  .strength-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-top: 20px;
+  }
+  @media(max-width:600px){ .strength-grid { grid-template-columns: 1fr 1fr; } }
+
+  .strength-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: #b0b8c8;
+    font-weight: 500;
+  }
+  .strength-item::before {
+    content: '✓';
+    color: var(--amber-glow);
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    text-align: center;
+    padding: 30px 20px 40px;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    position: relative;
+    z-index: 1;
+  }
+  .footer .name { color: var(--amber); }
+
+  /* ── COPY PROTECTION ── */
+  img { pointer-events: none; }
+</style>
+</head>
+<body
+  oncontextmenu="return false"
+  ondragstart="return false"
+  onselectstart="return false"
+>
+
+<!-- IN PROGRESS BANNER -->
+<div class="in-progress-banner">
+  <span>⚙ IN PROGRESS ·············· ACTIVE DEVELOPMENT ·············· IN PROGRESS ⚙</span>
+</div>
+
+<!-- HEADER -->
+<header class="header">
+
+  <!-- Animated drill bit SVG -->
+  <svg class="drill-icon" viewBox="0 0 70 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="35" cy="35" r="32" stroke="#e8a000" stroke-width="1.5" stroke-dasharray="6 3" opacity="0.4"/>
+    <circle cx="35" cy="35" r="22" fill="#141820" stroke="#e8a000" stroke-width="2"/>
+    <polygon points="35,14 40,28 35,24 30,28" fill="#e8a000"/>
+    <polygon points="35,56 40,42 35,46 30,42" fill="#cc2200"/>
+    <polygon points="14,35 28,30 24,35 28,40" fill="#00bcd4"/>
+    <polygon points="56,35 42,30 46,35 42,40" fill="#00bcd4"/>
+    <circle cx="35" cy="35" r="5" fill="#e8a000"/>
+  </svg>
+
+  <div class="header-sub">Learning Drilling Operations &amp; Safety with Python and AI</div>
+  <h1 class="header-title">DRILL TICK <span class="dash">—</span> DRILLING &amp;<br>SAFETY OPERATIONS SIMULATOR</h1>
+  <p class="header-tagline">Petroleum Engineering Systems Simulation &nbsp;|&nbsp; Built with AI-Assisted Python (Tkinter)</p>
+
+  <div class="purpose-box">
+    <strong>◎ PROJECT PURPOSE</strong>
+    Self-developed engineering simulator translating real drilling &amp; lifting operations
+    into executable logic — to strengthen operational understanding and systems thinking.
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="container">
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <span class="stat-num">6</span>
+      <span class="stat-label">Core Modules</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num">2</span>
+      <span class="stat-label">Kill Sheets</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num">PDF</span>
+      <span class="stat-label">Export Ready</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num">AI</span>
+      <span class="stat-label">Assisted Build</span>
+    </div>
+  </div>
+
+  <!-- TWO COLUMN MODULES -->
+  <div class="two-col">
+
+    <!-- LEFT: DRILLING -->
+    <div class="col-panel">
+      <div class="section-label red">Drilling Systems Simulated</div>
+      <div class="col-panel-title">DRILLING SYSTEMS SIMULATED</div>
+
+      <div class="module">
+        <div class="module-name">Well Control &amp; BOP Logic</div>
+        <ul class="module-points">
+          <li>Annular, Pipe Rams, Blind Shear, Choke/Kill Line</li>
+          <li>Accumulator pressure drop &amp; recovery modeling</li>
+          <li>Operational interlocks (MASTER control, pump restrictions)</li>
+          <li>Hydraulic response simulation</li>
+        </ul>
+      </div>
+
+      <div class="module">
+        <div class="module-name">Mud Pump &amp; Circulation</div>
+        <ul class="module-points">
+          <li>Pump system with SPM ramp-up/down</li>
+          <li>Simulated Dynamic Drill Pipe Pressure</li>
+          <li>Simulated Casing surge &amp; bleed-down behavior</li>
+          <li>Pump displacement &amp; pressure loss modeling</li>
+        </ul>
+      </div>
+
+      <div class="module">
+        <div class="module-name">Kill Sheet Simulator</div>
+        <ul class="module-points">
+          <li>Surface &amp; Subsea kill sheet variants</li>
+          <li>SIDPP/SICP-based KMW calculation</li>
+          <li>ICP, FCP &amp; step-down pressure modeling</li>
+          <li>Export-to-PDF industry-style kill sheet</li>
+        </ul>
+      </div>
+
+      <div class="module">
+        <div class="module-name">Surface Sensors System</div>
+        <ul class="module-points">
+          <li>Hook load calibration (Analog/Digital logic)</li>
+          <li>Draw works encoder &amp; bit depth tracking</li>
+          <li>Hydrostatic &amp; Bottom Hole Pressure modeling</li>
+          <li>Fracture detection alarm system</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- RIGHT: SAFETY -->
+    <div class="col-panel">
+      <div class="section-label cyan">Safety &amp; Lifting Modules</div>
+      <div class="col-panel-title">SAFETY &amp; LIFTING MODULES</div>
+
+      <div class="module">
+        <div class="module-name">Crane Lifting Plan Simulator</div>
+        <ul class="module-points">
+          <li>Real load chart interpretation</li>
+          <li>Boom geometry &amp; radius calculation</li>
+          <li>% Capacity risk classification</li>
+          <li>Pre-lift checklist validation logic</li>
+        </ul>
+      </div>
+
+      <div class="module">
+        <div class="module-name">Rigging &amp; Sling Angle Analysis</div>
+        <ul class="module-points">
+          <li>SWL, MBL, FOS modeling</li>
+          <li>Sling tension amplification (L/H factor)</li>
+          <li>Angle-based safety evaluation</li>
+          <li>Real-time load validation system</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- TECH STACK -->
+  <div style="text-align:center; margin-bottom:16px;">
+    <div class="section-label cyan">Tech Stack</div>
+  </div>
+  <div class="tech-row">
+    <span class="tech-tag">Python</span>
+    <span class="tech-tag">Tkinter</span>
+    <span class="tech-tag">ReportLab (PDF)</span>
+    <span class="tech-tag">Math / Engineering Logic</span>
+    <span class="tech-tag">AI-Assisted Dev</span>
+    <span class="tech-tag">OOP Design</span>
+  </div>
+
+  <!-- ENGINEERING STRENGTHS -->
+  <div class="strength-panel">
+    <div class="section-label red">Engineering Strength Demonstrated</div>
+    <div class="strength-grid">
+      <div class="strength-item">Systems thinking in drilling operations</div>
+      <div class="strength-item">Well control logic modeling</div>
+      <div class="strength-item">Pressure behavior understanding</div>
+      <div class="strength-item">Lifting safety engineering</div>
+      <div class="strength-item">Operational interlock design</div>
+      <div class="strength-item">Practical application of PE concepts</div>
+    </div>
+  </div>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <span class="name">KARTICK</span> &nbsp;·&nbsp; DrillTick — Drilling &amp; Safety Operations Simulator &nbsp;·&nbsp; Python + Tkinter &nbsp;·&nbsp; IN PROGRESS
+</footer>
+
+<script>
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey||e.metaKey) && ['c','a','u','s','p'].includes(e.key.toLowerCase())) e.preventDefault();
+    if (e.key === 'F12' || e.key === 'F5') e.preventDefault();
+  });
+</script>
+</body>
+</html>
